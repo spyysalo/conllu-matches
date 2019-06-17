@@ -54,11 +54,15 @@ class Sentence(object):
 
     def char_length(self):
         """Return total character length ignoring space"""
-        return sum(len(w.form) for w in self.words)
+        return sum(not c.isspace() for w in self.words for c in w.form)
 
     def span(self):
         """Return (start, end) character span in source, ignoring space"""
         return self.offset, self.offset+self.char_length()
+
+    def chars(self):
+        """Return characters, ignoring space"""
+        return ''.join([w.form for w in self.words])
 
     def text(self):
         if self._text is None:
@@ -165,7 +169,19 @@ def main(argv):
     while c1.current is not None and c2.current is not None:
         c1_start, c1_end = c1.current.span()
         c2_start, c2_end = c2.current.span()
-        if c1_start < c2_start or c1_end < c2_end:
+        if ((c1_start, c1_end) != (c2_start, c2_end) and
+            c1.current.chars() == c2.current.chars()):
+            warning('possible desync: {}-{} != {}-{}:\n\t"{}" vs.\n\t"{}"'.format(
+                c1_start, c1_end, c2_start, c2_end,
+                ' '.join([w.form for w in c1.current.words]),
+                ' '.join([w.form for w in c2.current.words])))
+        if c1_start != c2_start and c1_end == c2_end:
+            # Different start but both end on the same character, advance both
+            stats['span mismatch ({})'.format(n1)] += 1
+            stats['span mismatch ({})'.format(n2)] += 1
+            c1.advance()
+            c2.advance()
+        elif c1_start < c2_start or c1_end < c2_end:
             stats['span mismatch ({})'.format(n1)] += 1
             c1.advance()
         elif c2_start < c1_start or c2_end < c1_end:
